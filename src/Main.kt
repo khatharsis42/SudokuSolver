@@ -20,22 +20,32 @@ class Sudoku(
         size = string.trimIndent().replace("\n", "").length.quadRoot()
     )
 
-    private fun getLineValues(lineNumber: Int) = grid[lineNumber].filter { it >= 0 }
+    private val lineValues = mutableMapOf<Int, List<Int>>()
+
+    private fun getLineValues(lineNumber: Int) =
+        lineValues[lineNumber] ?: grid[lineNumber].filter { it >= 0 }.also { lineValues[lineNumber] = it }
+
+    private val columnValues = mutableMapOf<Int, List<Int>>()
 
     private fun getColumnValues(columnNumber: Int) =
-        grid.indices.map { lineNumber -> grid[lineNumber][columnNumber] }.filter { it >= 0 }
+        columnValues[columnNumber] ?: grid.indices.map { lineNumber -> grid[lineNumber][columnNumber] }
+            .filter { it >= 0 }.also { columnValues[columnNumber] = it }
 
     private fun getBlockNumber(lineNumber: Int, columnNumber: Int) =
         lineNumber.div(size) * size + columnNumber.div(size)
 
-    public fun getBlockValues(blockNumber: Int): List<Int> {
+    private val blockValues = mutableMapOf<Int, List<Int>>()
+
+    private fun getBlockValues(blockNumber: Int): List<Int> {
+        if (blockValues[blockNumber] != null)
+            return blockValues[blockNumber]!!
         val numbers = mutableListOf<Int>()
         for (i: Int in (0..<size)) {
             for (j: Int in (0..<size)) {
                 numbers += grid[blockNumber.div(size) * size + i][blockNumber.mod(size) * size + j]
             }
         }
-        return numbers.filter { it >= 0}
+        return numbers.filter { it >= 0 }.also { blockValues[blockNumber] = it }
     }
 
     private fun getPossibleValues(lineNumber: Int, columnNumber: Int) = (0..<size * size).shuffled()
@@ -45,9 +55,9 @@ class Sudoku(
 
     val getAllPossibleSteps =
         (0..<size * size).map { i ->
-            (0..<size * size).mapNotNull { j ->
-                if (grid[i][j] == -1) (i to j) to getPossibleValues(i, j) else null
-            }
+            (0..<size * size)
+                .filter { j -> grid[i][j] == -1 }
+                .map { j -> (i to j) to getPossibleValues(i, j) }
         }.flatten().sortedBy { it.second.size }
 
     val isBlocked by lazy { getAllPossibleSteps.any { it.second.isEmpty() } || (getAllPossibleSteps.isEmpty() && !isSolved) }
@@ -140,8 +150,7 @@ fun main() {
             ..0.319..C67.4..
             """.lowercase()
     )
-    println(firstSudoku)
-    println(firstSudoku.getBlockValues(5).filter { it >= 0}.map {Integer.toHexString(it)})
+
     val sudokuList: MutableList<SudokuHelper> = mutableListOf(SudokuHelper(firstSudoku, 0, 0))
     while (true) {
         val sudokuHelper = sudokuList.last()
@@ -174,10 +183,11 @@ fun main() {
             sudokuList.add(SudokuHelper(nextStep, 0, 0))
             continue
         }
-        println(" ".repeat(sudokuList.size) + "Forking ${sudokuHelper.currentTry + 1}/${possibleSteps.size} " +
-                "(${sudokuHelper.currentTryIndex + 1}/${possibleSteps[sudokuHelper.currentTry].second.size}) " +
-                "(${possibleSteps.subList(sudokuHelper.currentTry, possibleSteps.size).sumOf { it.second.size }} " +
-                "possibles steps)"
+        println(
+            " ".repeat(sudokuList.size) + "Forking ${sudokuHelper.currentTry + 1}/${possibleSteps.size} " +
+                    "(${sudokuHelper.currentTryIndex + 1}/${possibleSteps[sudokuHelper.currentTry].second.size}) " +
+                    "(${possibleSteps.subList(sudokuHelper.currentTry, possibleSteps.size).sumOf { it.second.size }} " +
+                    "possibles steps)"
         )
         val (lineNumber, colNumber) = possibleSteps[sudokuHelper.currentTry].first
         val tryValue = possibleSteps[sudokuHelper.currentTry].second[sudokuHelper.currentTryIndex]
@@ -185,6 +195,7 @@ fun main() {
         sudokuHelper.currentTryIndex++;
         if (!nextStep.isBlocked)
             sudokuList.add(SudokuHelper(nextStep, 0, 0))
+        // TODO Heuristic: take the action that decreases the most amount of steps
     }
     for (s in sudokuList) {
         println(s.sudoku)
