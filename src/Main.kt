@@ -12,7 +12,10 @@ fun Int.quadRoot(): Int {
 class Sudoku(
     private val grid: List<List<Int>>,
     private val oldGrid: List<List<Int>>? = null,
-    private val size: Int = 3
+    private val size: Int = 3,
+    private val lineValues: MutableMap<Int, List<Int>> = mutableMapOf<Int, List<Int>>(),
+    private val columnValues: MutableMap<Int, List<Int>> = mutableMapOf<Int, List<Int>>(),
+    private val blockValues: MutableMap<Int, List<Int>> = mutableMapOf<Int, List<Int>>()
 ) {
     constructor(string: String) : this(
         string.trimIndent().split("\n")
@@ -20,12 +23,10 @@ class Sudoku(
         size = string.trimIndent().replace("\n", "").length.quadRoot()
     )
 
-    private val lineValues = mutableMapOf<Int, List<Int>>()
 
     private fun getLineValues(lineNumber: Int) =
         lineValues[lineNumber] ?: grid[lineNumber].filter { it >= 0 }.also { lineValues[lineNumber] = it }
 
-    private val columnValues = mutableMapOf<Int, List<Int>>()
 
     private fun getColumnValues(columnNumber: Int) =
         columnValues[columnNumber] ?: grid.indices.map { lineNumber -> grid[lineNumber][columnNumber] }
@@ -34,7 +35,6 @@ class Sudoku(
     private fun getBlockNumber(lineNumber: Int, columnNumber: Int) =
         lineNumber.div(size) * size + columnNumber.div(size)
 
-    private val blockValues = mutableMapOf<Int, List<Int>>()
 
     private fun getBlockValues(blockNumber: Int): List<Int> {
         if (blockValues[blockNumber] != null)
@@ -66,7 +66,11 @@ class Sudoku(
     fun doStep(lineNumber: Int, columnNumber: Int, value: Int): Sudoku {
         val newGrid = grid.map { it.toMutableList() }.toMutableList()
         newGrid[lineNumber][columnNumber] = value
-        return Sudoku(newGrid, grid, size)
+        return Sudoku(newGrid, grid, size,
+            lineValues.filterKeys { it == lineNumber }.toMutableMap(),
+            columnValues.filterKeys { it == columnNumber }.toMutableMap(),
+            blockValues.filterKeys { it == getBlockNumber(lineNumber, columnNumber) }.toMutableMap()
+        )
     }
 
     fun doAllTrivialSteps(): Sudoku? {
@@ -76,10 +80,16 @@ class Sudoku(
         }
         if (possibleSteps.isNotEmpty()) {
             val newGrid = grid.map { it.toMutableList() }.toMutableList()
+            val newLineValues = lineValues.toMutableMap()
+            val newColumnValues = columnValues.toMutableMap()
+            val newBlockValues = blockValues.toMutableMap()
             for ((coordinates, step) in possibleSteps) {
                 newGrid[coordinates.first][coordinates.second] = step.first()
+                newLineValues.remove(coordinates.first)
+                newColumnValues.remove(coordinates.second)
+                newBlockValues.remove(getBlockNumber(coordinates.first, coordinates.second))
             }
-            return Sudoku(newGrid, grid, size)
+            return Sudoku(newGrid, grid, size, newLineValues, newColumnValues,newBlockValues)
         }
         return null
     }
